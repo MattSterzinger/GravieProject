@@ -1,0 +1,170 @@
+using Newtonsoft.Json;
+using NUnit.Framework;
+
+namespace GiantBombQuery
+{
+    [TestFixture]
+    public class TestCases
+    {
+        private const string BASE_URL = "http://www.giantbomb.com/api/";
+        private const string GAME_RESOURCE = "game/";
+        private const string SEARCH_RESOURCE = "search/";
+        private const string JSON_QUERY_RESOURCE = "json&query";
+        private const string JSONP_QUERY_RESOURCE = "jsonp&query";
+        private const string AUTHENTICATION_KEY = "?api_key=734744cc8be16bc0bfcbfac37cb723a7f4ddd574";
+        private const string METROID_GAME_ID = "3030-4725/";
+        private const string METROID_PRIME_NAME = "Metroid Prime";
+        private const int GOOD_STATUS_CODE = 1;
+        private const int INVALID_API_KEY_CODE = 100;
+        private const int OBJECT_NOT_FOUND_CODE = 101;
+        private const int ERROR_IN_URL_FORMAT_CODE = 102;
+        private const int JSONP_FORMAT_ERROR_CODE = 103;
+        private const string GOOD_STATUS_MESSAGE = "OK";
+        private const string INVALID_API_KEY_MESSAGE = "Invalid API Key";
+        private const string OBJECT_NOT_FOUND_ERROR_MESSAGE = "Object Not Found";
+        private const string ERROR_IN_URL_FORMAT_MESSAGE = "Error in URL Format";
+        private const string JSONP_FORMAT_ERROR_MESSAGE = "jsonp format requires a json_callback argument";
+
+        private HttpClient? _httpClient;
+
+        [SetUp]
+        public void Setup()
+        {
+            _httpClient = new HttpClient();
+        }
+
+        [Test]
+        [Category("Happy Path Tests")]
+        [Description("This is the happy path test using game id")]
+        public async void QueryGameIdSuccessful()
+        {
+            // Arrange
+            string url = BASE_URL + GAME_RESOURCE + METROID_GAME_ID + AUTHENTICATION_KEY;
+            
+            // Act
+            HttpResponseMessage responseMessage = await _httpClient!.GetAsync(url);
+            string jsonResult = await responseMessage.Content.ReadAsStringAsync();
+            var result = JsonConvert.DeserializeObject<JSONResponse>(jsonResult);
+
+            // Assert
+            Assert.AreEqual(result!.StatusCode, GOOD_STATUS_CODE);
+            Assert.AreEqual(result!.Error, GOOD_STATUS_MESSAGE);
+            CollectionAssert.Contains(result.Results, METROID_PRIME_NAME);
+        }
+
+        [Test]
+        [Category("Happy Path Tests")]
+        [Description("This is the happy path test using game name")]
+        public async void QueryGameNameSuccessful()
+        {
+            // Arrange
+
+            string url = BASE_URL + SEARCH_RESOURCE + AUTHENTICATION_KEY + "&format=" + JSON_QUERY_RESOURCE + "=\"metroid prime\"&resources=game";
+
+            // Act
+            HttpResponseMessage responseMessage = await _httpClient!.GetAsync(url);
+            string jsonResult = await responseMessage.Content.ReadAsStringAsync();
+            var result = JsonConvert.DeserializeObject<JSONResponse>(jsonResult);
+
+            // Assert
+            Assert.AreEqual(result!.StatusCode, GOOD_STATUS_CODE);
+            Assert.AreEqual(result!.Error, GOOD_STATUS_MESSAGE);
+            CollectionAssert.Contains(result.Results, METROID_PRIME_NAME);
+        }
+
+        [Test]
+        [Category("Negative Tests")]
+        [Description("If no api key is given, an error is returned")]
+        public async void QueryGameIdFailure_EmptyKey()
+        {
+            // Arrange
+            string url = BASE_URL + GAME_RESOURCE + METROID_GAME_ID + "?api_key=";
+
+            // Act
+            HttpResponseMessage responseMessage = await _httpClient!.GetAsync(url);
+            string jsonResult = await responseMessage.Content.ReadAsStringAsync();
+            var result = JsonConvert.DeserializeObject<JSONResponse>(jsonResult);
+
+            // Assert
+            Assert.AreEqual(result!.StatusCode, INVALID_API_KEY_CODE);
+            Assert.AreEqual(result!.Error, INVALID_API_KEY_MESSAGE);
+            CollectionAssert.DoesNotContain(result.Results, METROID_PRIME_NAME);
+        }
+
+        [Test]
+        [Category("Negative Tests")]
+        [Description("If an invalid api key is given, an error is returned")]
+        public async void QueryGameIdFailure_InvalidKey()
+        {
+            // Arrange
+            string url = BASE_URL + GAME_RESOURCE + METROID_GAME_ID + "45646";
+
+            // Act
+            HttpResponseMessage responseMessage = await _httpClient!.GetAsync(url);
+            string jsonResult = await responseMessage.Content.ReadAsStringAsync();
+            var result = JsonConvert.DeserializeObject<JSONResponse>(jsonResult);
+
+            // Assert
+            Assert.AreEqual(result!.StatusCode, INVALID_API_KEY_CODE);
+            Assert.AreEqual(result!.Error, INVALID_API_KEY_MESSAGE);
+            CollectionAssert.DoesNotContain(result.Results, METROID_PRIME_NAME);
+        }
+
+        [Test]
+        [Category("Negative Tests")]
+        [Description("If an invalid game id is given, an object not found error is returned")]
+        public async void QueryGameIdFailure_ObjectNotFound() 
+        {
+            // Arrange
+            string url = BASE_URL + GAME_RESOURCE + "789797" + AUTHENTICATION_KEY;
+
+            // Act
+            HttpResponseMessage responseMessage = await _httpClient!.GetAsync(url);
+            string jsonResult = await responseMessage.Content.ReadAsStringAsync();
+            var result = JsonConvert.DeserializeObject<JSONResponse>(jsonResult);
+
+            // Assert
+            Assert.AreEqual(result!.StatusCode, OBJECT_NOT_FOUND_CODE);
+            Assert.AreEqual(result!.Error, OBJECT_NOT_FOUND_ERROR_MESSAGE);
+            CollectionAssert.DoesNotContain(result.Results, METROID_PRIME_NAME);
+        }
+
+        [Test]
+        [Category("Negative Tests")]
+        [Description("If an invalid url format is given, an error in url format error is returned")]
+        public async void QueryGameIdFailure_ErrorInURLFormat() 
+        {
+            // Arrange
+            string url = BASE_URL + "gam/" + METROID_GAME_ID + AUTHENTICATION_KEY;
+
+            // Act
+            HttpResponseMessage responseMessage = await _httpClient!.GetAsync(url);
+            string jsonResult = await responseMessage.Content.ReadAsStringAsync();
+            var result = JsonConvert.DeserializeObject<JSONResponse>(jsonResult);
+
+            // Assert
+            Assert.AreEqual(result!.StatusCode, ERROR_IN_URL_FORMAT_CODE);
+            Assert.AreEqual(result!.Error, ERROR_IN_URL_FORMAT_MESSAGE);
+            CollectionAssert.DoesNotContain(result.Results, METROID_PRIME_NAME);
+        }
+
+        [Test]
+        [Category("Negative Tests")]
+        [Description("If an invalid jsonp format is given, a JSONP format error is returned")]
+        public async void QueryGameByNameFailure_JSONPFormat() 
+        {
+            // Arrange
+            string url = BASE_URL + SEARCH_RESOURCE + AUTHENTICATION_KEY + "&format=" + JSONP_QUERY_RESOURCE + "=\"metroid prime\"&resources=game";
+
+            // Act
+            HttpResponseMessage responseMessage = await _httpClient!.GetAsync(url);
+            string jsonResult = await responseMessage.Content.ReadAsStringAsync();
+            var result = JsonConvert.DeserializeObject<JSONResponse>(jsonResult);
+
+            // Assert
+            Assert.AreEqual(result!.StatusCode, JSONP_FORMAT_ERROR_CODE);
+            Assert.AreEqual(result!.Error, JSONP_FORMAT_ERROR_MESSAGE);
+            CollectionAssert.DoesNotContain(result.Results, METROID_PRIME_NAME);
+        }
+    }
+}
